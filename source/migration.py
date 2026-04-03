@@ -28,3 +28,7 @@ def run(sqlite_connection: sqlite3.Connection, duckdb_connection: duckdb.DuckDBP
         ALTER TABLE DimGeography ALTER PostalCode SET DATA TYPE BIGINT
         USING TRY_CAST(NULLIF(NULLIF(PostalCode, 'nan'), '') AS BIGINT);
     """)
+    duckdb_connection.sql("""
+        ALTER TABLE FactSales ALTER OrderDate TYPE DATE;
+        ALTER TABLE FactSales ALTER ShipDate TYPE DATE;
+    """)
