@@ -2,7 +2,7 @@ import sqlite3
 import argparse
 from colorama import Fore, Style
 
-from modules.const import DB_FILE_PATH, DUCKDB_FILE_PATH
+from modules.const import QUERIES_DIR, DB_FILE_PATH, DUCKDB_FILE_PATH
 from modules.func import connect_to_db, connect_to_duckdb, enum_tables
 from modules.types import TypeCheck
 
@@ -11,6 +11,7 @@ from source import (
     bulk_update_from_csv,
     migration
 )
+import queries._run
 
 RED = Fore.RED
 BLU = Fore.BLUE
@@ -150,3 +151,7 @@ with connect_to_db(DB_FILE_PATH) as conn1, connect_to_duckdb(DUCKDB_FILE_PATH) a
     migration.run(conn1, conn2)
 print('-'*100)
 
+with connect_to_duckdb(DUCKDB_FILE_PATH) as conn:
+    print(f"{YELLOW}Esecuzione queries selezionate da {QUERIES_DIR}...{RESET}")
+    queries._run.run(conn, QUERIES_DIR)
+print('-'*100)

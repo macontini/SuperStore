@@ -40,7 +40,27 @@ python main.py --years 3 --scd2 100  # 3 synthetic years, 100 customers with Seg
 | `-y, --years` | Numero di anni sintetici da generare | `5` |
 | `-s, --scd2` | Customers che cambiano Segment (SCD2 test) | `300` |
 
-Se `superstore.db` esiste già, la fase *bootstrap* viene saltata e e la pipeline comincia dall'UPSERT.
+Se `superstore.db` esiste già, la fase *bootstrap* viene saltata e la pipeline comincia dall'UPSERT.
+
+## Queries
+
+Nella cartella `queries` sono presenti 5 analisi business eseguite su DuckDB:
+
+| File | Analisi |
+| --- | --- |
+| `01 - yoy_growth.sql` | Revenue YoY per categoria con variazione percentuale |
+| `02 - cohort.sql` | Cohort retention: revenue per anno di prima acquisizione |
+| `03 - abc_analysis.sql` | Classificazione ABC dei prodotti per revenue cumulato |
+| `04 - shipping.sql` | Shipping performance e anomalie per ShipMode |
+| `05 - geo.sql` | Penetrazione geografica con rank regionale e segmentazione |
+
+Per eseguirle tutte in sequenza in modo indipendente dalla pipeline principale (`main.py`):
+
+```bash
+python queries/_run.py
+```
+
+Lo script legge i file `.sql` in ordine alfabetico, stampa un'anteprima del risultato e attende conferma prima di procedere al successivo.
 
 ## Struttura
 
@@ -60,7 +80,15 @@ Se `superstore.db` esiste già, la fase *bootstrap* viene saltata e e la pipelin
 │   ├── random_yearly_data.py
 │   ├── random_scd2_data.py
 │   └── migration.py
-└── csv/
-    ├── train.csv          # Source data
-    └── train_SCD.csv      # Generato a runtime
+├── csv/
+│   ├── train.csv          # Source data
+│   └── train_SCD.csv      # Generato a runtime
+└── queries/            # Simulazioni Business Analysis
+    ├── __init__.py
+    ├── _run.py         # unico runner: legge .sql, esegue, esporta CSV
+    ├── 01 - yoy_growth.sql
+    ├── 02 - cohort.sql
+    ├── 03 - abc_analysis.sql
+    ├── 04 - shipping.sql
+    └── 05 - geo.sql
 ```
