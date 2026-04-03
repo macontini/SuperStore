@@ -1,0 +1,7 @@
+*duckdb*
+*.db
+
+*.csv
+!csv/train.csv
+
+__pycache__
