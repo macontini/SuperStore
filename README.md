@@ -62,6 +62,12 @@ python queries/_run.py
 
 Lo script legge i file `.sql` in ordine alfabetico, stampa un'anteprima del risultato e attende conferma prima di procedere al successivo.
 
+In alternativa, `queries/notebook.py` è un notebook interattivo che esegue le stesse query su DuckDB e ne mostra i risultati navigabili nel browser:
+
+```bash
+marimo run queries/notebook.py
+```
+
 ## Struttura
 
 ```plain
