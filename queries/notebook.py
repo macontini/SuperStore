@@ -37,6 +37,36 @@ def _(mo):
 
 
 @app.cell
+def _(mo):
+    mo.md(r"""
+    ```sql
+    WITH grouped AS (
+        SELECT
+            EXTRACT(YEAR FROM f.OrderDate) AS Year,
+            p.Category,
+            ROUND(SUM(f.Sales), 2) AS Revenue
+        FROM FactSales f
+        JOIN DimProducts p
+            ON p.ProductKey = f.ProductKey
+        WHERE f.OrderDate IS NOT NULL
+        GROUP BY Year,
+            p.Category
+    )
+    SELECT
+        *,
+        LAG(Revenue) OVER (
+            PARTITION BY Category
+            ORDER BY Year
+        ) AS Prev_Revenue,
+      ROUND((Revenue - Prev_Revenue) * 100.0 / NULLIF(Prev_Revenue, 0), 2) AS yoy_pct
+    FROM grouped
+    ORDER BY Category, Year;
+    ```
+    """)
+    return
+
+
+@app.cell
 def _(dimproducts, engine, factsales, mo):
     _df = mo.sql(
         f"""
@@ -78,6 +108,35 @@ def _(dimproducts, engine, factsales, mo):
 def _(mo):
     mo.md(r"""
     # 02 - Cohort
+    """)
+    return
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""
+    ```sql
+    WITH cte AS (
+        SELECT
+          CustomerKey,
+          MIN(EXTRACT(YEAR FROM OrderDate)) OVER (
+              PARTITION BY CustomerKey
+          ) AS Cohort_Year,
+          EXTRACT(YEAR FROM OrderDate) AS Order_Year,
+          Sales
+        FROM FactSales
+    )
+    SELECT
+      Cohort_Year,
+      Order_Year,
+      Order_Year - Cohort_Year AS Periods_Since_First,
+      COUNT(DISTINCT CustomerKey) AS Customers,
+      ROUND(SUM(Sales), 2) AS Revenue,
+      ROUND(Revenue * 1.0 / NULLIF(Customers, 0), 2) AS Avg_Revenue_per_Customer
+    FROM cte
+    GROUP BY Cohort_Year, Order_Year
+    ORDER BY Cohort_Year, Order_Year;
+    ```
     """)
     return
 
@@ -125,6 +184,45 @@ def _(engine, factsales, mo):
 def _(mo):
     mo.md(r"""
     # 03 - ABC Analysis
+    """)
+    return
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""
+    ```sql
+    WITH cte AS (
+        SELECT
+            p.ProductID,
+            p.ProductName,
+            p.Category,
+            p.SubCategory,
+            ROUND(SUM(f.Sales), 2) AS Revenue,
+            ROUND(Revenue * 100.0 / NULLIF((SELECT SUM(Sales) FROM FactSales), 0), 6) AS revenue_pct
+        FROM DimProducts p
+        JOIN FactSales f
+            ON f.ProductKey = p.ProductKey
+        GROUP BY ALL
+    ),
+    ranked AS (
+        SELECT
+            *,
+            ROUND(SUM(revenue_pct) OVER (
+                ORDER BY revenue_pct DESC
+            ), 6) AS cumulative_pct
+        FROM cte
+    )
+    SELECT
+        *,
+        CASE
+            WHEN cumulative_pct <= 80 THEN 'A'
+            WHEN cumulative_pct <= 95 THEN 'B'
+            WHEN cumulative_pct <= 100 THEN 'C'
+        END AS class
+    FROM ranked
+    ORDER BY Revenue DESC;
+    ```
     """)
     return
 
@@ -185,6 +283,50 @@ def _(dimproducts, engine, factsales, mo):
 def _(mo):
     mo.md(r"""
     # 04 - Shipping
+    """)
+    return
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""
+    ```sql
+    WITH ranges AS (
+        SELECT
+            ShipMode,
+            CASE ShipMode
+                WHEN 'Same Day' THEN 0
+                WHEN 'Standard Class' THEN 4
+                WHEN 'First Class' THEN 1
+                WHEN 'Second Class' THEN 2
+            END AS Expected_Min,
+            CASE ShipMode
+                WHEN 'Same Day' THEN 1
+                WHEN 'Standard Class' THEN 7
+                WHEN 'First Class' THEN 3
+                WHEN 'Second Class' THEN 5
+            END AS Expected_Max,
+        FROM FactSales
+        GROUP BY ShipMode
+    )
+    SELECT
+        f.ShipMode,
+        ROUND(AVG(ShipDate - OrderDate), 2) AS Avg_Delay_Days,
+        MIN(ShipDate - OrderDate) AS Min_Delay_Days,
+        MAX(ShipDate - OrderDate) AS Max_Delay_Days,
+        ANY_VALUE(r.Expected_Min) AS Expected_Min,
+        ANY_VALUE(r.Expected_Max) AS Expected_Max,
+        SUM(CASE
+            WHEN (ShipDate - OrderDate) BETWEEN r.Expected_Min AND r.Expected_Max THEN 0
+            ELSE 1
+        END) AS Anomalies,
+        ROUND(Anomalies * 100.0 / NULLIF(COUNT(*), 0), 3) AS Anomaly_pct
+    FROM FactSales f
+    JOIN ranges r
+        ON r.ShipMode = f.ShipMode
+    GROUP BY f.ShipMode
+    ORDER BY Anomaly_pct DESC;
+    ```
     """)
     return
 
@@ -256,6 +398,44 @@ def _(engine, factsales, mo):
 def _(mo):
     mo.md(r"""
     # 05 - Geo
+    """)
+    return
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""
+    ```sql
+    WITH cte AS (
+        SELECT
+            g.Region,
+            g.State,
+            COUNT(DISTINCT OrderID) AS Orders,
+            ROUND(SUM(f.Sales), 2) AS Revenue,
+            ROUND(AVG(f.Sales), 2) AS Avg_Order_Value
+        FROM FactSales f
+        JOIN DimGeography g
+            ON g.GeoKey = f.GeoKey
+        GROUP BY g.Region, g.State
+    ),
+    quantiles AS (
+        SELECT
+            QUANTILE_CONT(Orders, 0.5) AS median_orders,
+            QUANTILE_CONT(Revenue, 0.5) AS median_revenue
+        FROM cte
+    )
+    SELECT
+        cte.*,
+        ROUND(Revenue * 100.0 / (SELECT SUM(Sales) FROM FactSales), 2) AS National_Revenue_Pct,
+        RANK() OVER (PARTITION BY Region ORDER BY Revenue DESC) AS Revenue_Rank,
+        CASE
+            WHEN Orders >= q.median_orders AND Revenue <= q.median_revenue THEN 'High Volume Low Ticket'
+            WHEN Orders <= q.median_orders AND Revenue >= q.median_revenue THEN 'Low Volume High Ticket'
+            ELSE 'Other'
+        END AS Segment
+    FROM cte, quantiles q
+    ORDER BY Region, Revenue_Rank;
+    ```
     """)
     return
 
