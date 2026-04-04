@@ -68,6 +68,17 @@ In alternativa, `queries/notebook.py` è un notebook interattivo che esegue le s
 marimo run queries/notebook.py
 ```
 
+In assenza della libreria `marimo`, si può leggere output simile da `queries/notebook.html`.
+
+Per avere la traduzione in Python (**Pandas**) del flusso del notebook SQL:
+
+```bash
+jupyter notebook queries/pandas.ipynb
+```
+
+**NOTA**
+Gli output di *notebook.py*, *notebook.html* e *pandas.ipynb* sono gli stessi.
+
 ## Struttura
 
 ```plain
@@ -96,5 +107,8 @@ marimo run queries/notebook.py
     ├── 02 - cohort.sql
     ├── 03 - abc_analysis.sql
     ├── 04 - shipping.sql
-    └── 05 - geo.sql
+    ├── 05 - geo.sql
+    ├── notebook.py     # SQL notebook (richiede marimo)
+    ├── notebook.html   # Stampa del SQL notebook
+    └── pandas.ipynb    # Pandas notebook
 ```
